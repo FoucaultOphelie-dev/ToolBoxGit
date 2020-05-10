@@ -45,6 +45,7 @@ public class AnimationSimulatorWindow : EditorWindow
     }
     private void Update()
     {
+        //Refresh if change scene
         if(_currentScene!= SceneManager.GetActiveScene())
         {
             EditorApplication.update -= _OnEditorUpdate;
@@ -59,10 +60,79 @@ public class AnimationSimulatorWindow : EditorWindow
             _currentAnimatorIndex = 0;
             _currentClipIndex = 0;
             _isPlaying = false;
+            _speed = 1f;
+            _useSlider = false;
+            _valueOfSlider = 0f;
+            _countDelay = 0f;
+            _delay = 0f;
+            _stop = false;
+        }
+
+        //Remove the highlighter if change selection
+        if (_currentAnimator != null)
+        {
+            if (Selection.activeGameObject != _currentAnimator.gameObject)
+            {
+                try
+                {
+                    DestroyImmediate(_currentAnimator.gameObject.GetComponent<HierarchyHighlighter>());
+                }
+                catch
+                {
+
+                }
+            }
+        }
+    }
+
+    
+    private void OnHierarchyChange()
+    {
+        //refresh if the current animator is destroy
+        if(_currentAnimator == null)
+        {
+            EditorApplication.update -= _OnEditorUpdate;
+            AnimationMode.StopAnimationMode();
+            _animatorComponentsArr = null;
+            _animatorGameObjectsNames = null;
+            _currentAnimator = null;
+            _clipsOfCurrentAnimator = null;
+            _clipsNamesOfCurrentAnimator = null;
+            _editorLastTime = 0f;
+            _currentAnimatorIndex = 0;
+            _currentClipIndex = 0;
+            _isPlaying = false;
+            _speed = 1f;
+            _useSlider = false;
+            _valueOfSlider = 0f;
+            _countDelay = 0f;
+            _delay = 0f;
+            _stop = false;
+        }
+
+        //refresh only th list if the current animator isn't destroy
+        else
+        {
+            _animatorComponentsArr = _FindAnimatorComponentsInScene();
+            _animatorGameObjectsNames = _FindAnimatorsGameObjectsNames();
+
+            if (_currentAnimatorIndex > _animatorComponentsArr.Length - 1)
+            {
+                _currentAnimatorIndex = _animatorComponentsArr.Length - 1;
+                
+            }
+            while (_currentAnimator != _animatorComponentsArr[_currentAnimatorIndex])
+            {
+                _currentAnimatorIndex -= 1;
+            }
+
         }
     }
     private void OnGUI()
     {
+
+        //FIND THE ANIMATOR
+        ToolBoxEditorGUILayout.BeginBox("Selections");
         if (null == _animatorComponentsArr)
         {
             _animatorComponentsArr = _FindAnimatorComponentsInScene();
@@ -72,7 +142,22 @@ public class AnimationSimulatorWindow : EditorWindow
             _animatorGameObjectsNames = _FindAnimatorsGameObjectsNames();
         }
         _currentAnimatorIndex = EditorGUILayout.Popup("Animator", _currentAnimatorIndex, _animatorGameObjectsNames);
+
+        //Verification to destroy highlighter 
+        if(_currentAnimator != _animatorComponentsArr[_currentAnimatorIndex] && null != _currentAnimator)
+        {
+            StopAnim();
+            try
+            {
+                DestroyImmediate(_currentAnimator.gameObject.GetComponent<HierarchyHighlighter>());
+            }
+            catch { }
+        }
+        
         _currentAnimator = _animatorComponentsArr[_currentAnimatorIndex];
+
+
+        //FIND THE ANIMATION
 
         if (_currentAnimator != null)
         {
@@ -88,6 +173,11 @@ public class AnimationSimulatorWindow : EditorWindow
         }
         GUILayout.Space(10f);
         _currentClipIndex = EditorGUILayout.Popup("Animation", _currentClipIndex, _clipsNamesOfCurrentAnimator);
+        ToolBoxEditorGUILayout.EndBox();
+
+
+        //GIVE THE INFOMRATIONS OF THE ANIMATION
+
         ToolBoxEditorGUILayout.BeginBox("Informations");
         GUILayout.Label("Length : " + _clipsOfCurrentAnimator[_currentClipIndex].length);
         if (!_useSlider)
@@ -107,7 +197,11 @@ public class AnimationSimulatorWindow : EditorWindow
         }
         GUILayout.Label("Looping : " + _clipsOfCurrentAnimator[_currentClipIndex].isLooping);
         ToolBoxEditorGUILayout.EndBox();
-        GUILayout.Space(30f);
+
+
+        //MODE OF PLAY
+
+        ToolBoxEditorGUILayout.BeginBox("Playing Mode");
         _useSlider = GUILayout.Toggle(_useSlider, "Use a slider");
         if (!_useSlider)
         { 
@@ -122,6 +216,11 @@ public class AnimationSimulatorWindow : EditorWindow
                 EditorGUILayout.HelpBox("You have to play to show the animation",MessageType.Warning);
             }
         }
+        ToolBoxEditorGUILayout.EndBox();
+
+
+        //BUTTONS
+
         GUILayout.Space(30f);
         if (!Application.isPlaying)
         {
@@ -137,6 +236,7 @@ public class AnimationSimulatorWindow : EditorWindow
                 PlayAnim();
             }
         }
+        //Stop the animation if playing
         else
         {
             if (_isPlaying)
@@ -147,6 +247,7 @@ public class AnimationSimulatorWindow : EditorWindow
         if (GUILayout.Button("Select in scene"))
         {
             Selection.activeGameObject = _currentAnimator.gameObject;
+            _currentAnimator.gameObject.AddComponent<HierarchyHighlighter>();
             SceneView.lastActiveSceneView.FrameSelected();
             EditorGUIUtility.PingObject(_currentAnimator.gameObject);
         }
@@ -259,6 +360,7 @@ public class AnimationSimulatorWindow : EditorWindow
         {
             StopAnim();
         }
+        DestroyImmediate(_currentAnimator.gameObject.GetComponent<HierarchyHighlighter>());
     }
 
     private void DelayToPlay()
